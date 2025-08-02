@@ -11,7 +11,7 @@ st.markdown("Use the sliders below to simulate inputs and get real-time predicti
 
 # Load Data and Models
 df = pd.read_csv("data/simagro_crop_simulation.csv")
-health_model = joblib.load("health_classifier"".pkl")
+health_model = joblib.load("health_classifier.pkl")  # ✅ Fixed typo
 yield_model = joblib.load("yield_regressor.pkl")
 
 # --- Advisor Function ---
@@ -58,7 +58,7 @@ with st.sidebar:
 
 # --- Predict Button ---
 if st.button("🔍 Predict"):
-    health_input = np.array([[temp, moisture, pest, fertilizer]])
+    health_input = np.array([[temp, moisture, pest, fertilizer, height, health_score]])
     predicted_health = health_model.predict(health_input)[0]
 
     yield_input = np.array([[temp, moisture, pest, fertilizer, height, health_score]])
@@ -78,6 +78,15 @@ if st.button("🔍 Predict"):
     with st.expander("View Recommendations"):
         for rec in recommendations:
             st.write(f"- {rec}")
+
+    # --- Summary Badge ---
+    all_text = ''.join(recommendations)
+    if "🛑" in all_text:
+        st.error("⚠️ Critical issues detected in crop health. Please take immediate action.")
+    elif "⚠️" in all_text:
+        st.warning("⚠️ Some parameters require attention.")
+    else:
+        st.success("🌟 All systems optimal.")
 
 # --- Data Charts Section ---
 st.subheader("📈 Simulation Trends from Last Run")

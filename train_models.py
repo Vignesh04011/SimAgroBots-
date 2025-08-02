@@ -5,54 +5,58 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import accuracy_score, mean_squared_error
 import joblib
 
-# Load data
-df = pd.read_csv("data/simagro_crop_simulation.csv")
+# --- Load Excel Files ---
+main_df = pd.read_excel("data/main_features.xlsx")
+dynamic_df = pd.read_excel("data/dynamic_features.xlsx")
 
-# --- Health Classification ---
+# --- Merge Files ---
+# If both files share the same row order or a key like 'ID', use that
+df = pd.concat([main_df, dynamic_df], axis=1)
 
-# Create health category labels
-def classify_health(score):
-    if score >= 80:
-        return 'Good'
-    elif score >= 50:
-        return 'Moderate'
-    else:
-        return 'Poor'
+# --- Drop Rows with Missing Labels ---
+df = df.dropna(subset=["Health Score", "Yield_tons_per_hectare"])
 
-df['Health_Label'] = df['Health Score'].apply(classify_health)
+# --- Final 30 Features ---
+selected_features = [
+    # Manual
+    "Region", "Crop", "Soil_Type", "Soil_pH", "Organic_Matter", "Fertilizer_Used", "Irrigation_Used",
+    "Days_to_Harvest", "Weather_Condition", "Weed_Coverage", "Temperature(C)", "Rainfall(mm)",
+    "Pest Level", "Crop Height(cm)", "DayInSeason",
+    
+    # Sensor
+    "NDVI", "SAVI", "Chlorophyll_Content", "Leaf_Area_Index", "Canopy_Coverage",
+    "Soil Moisture(%)", "Wind_Speed", "Sunlight(hrs)", "Humidity", "Elevation_Data",
+    "Crop_Stress_Indicator", "Crop_Growth_Stage", "Rainfall_mm", "Temperature_Celsius",
+    
+    # Extra for regression
+    "Health Score"
+]
 
-# ✅ Updated features: includes Crop Height and Health Score
-X_health = df[['Temperature(C)', 'Soil Moisture(%)', 'Pest Level', 'Fertilizer(g)', 'Crop Height(cm)', 'Health Score']]
-y_health = df['Health_Label']
+# --- Prepare Data ---
+df = df.dropna(subset=selected_features)
 
-# Split data
-Xh_train, Xh_test, yh_train, yh_test = train_test_split(X_health, y_health, test_size=0.2, random_state=42)
+X = df[selected_features]
+X = pd.get_dummies(X)  # Convert categorical to numeric
 
-# Train classifier
-clf = RandomForestClassifier(n_estimators=100, random_state=42)
-clf.fit(Xh_train, yh_train)
+# --- HEALTH MODEL ---
+y_health = df["Health Score"].astype(int)
+X_train_h, X_test_h, y_train_h, y_test_h = train_test_split(X, y_health, test_size=0.2, random_state=42)
 
-# Evaluate
-y_pred_health = clf.predict(Xh_test)
-acc = accuracy_score(yh_test, y_pred_health)
-print(f"✅ Health Classifier Accuracy: {acc * 100:.2f}%")
+health_model = RandomForestClassifier(n_estimators=150, random_state=42)
+health_model.fit(X_train_h, y_train_h)
+y_pred_h = health_model.predict(X_test_h)
 
-# Save model with correct name for app.py
-joblib.dump(clf, "health_classifier.pkl")
+print(f"✅ Health Model Accuracy: {accuracy_score(y_test_h, y_pred_h):.2f}")
+joblib.dump(health_model, "health_classifier.pkl")
 
-# --- Yield Regression ---
+# --- YIELD MODEL ---
+y_yield = df["Yield_tons_per_hectare"]
+X_train_y, X_test_y, y_train_y, y_test_y = train_test_split(X, y_yield, test_size=0.2, random_state=42)
 
-X_yield = df[['Temperature(C)', 'Soil Moisture(%)', 'Pest Level', 'Fertilizer(g)', 'Crop Height(cm)', 'Health Score']]
-y_yield = df['Yield Estimate']
+yield_model = RandomForestRegressor(n_estimators=150, random_state=42)
+yield_model.fit(X_train_y, y_train_y)
+y_pred_y = yield_model.predict(X_test_y)
 
-Xy_train, Xy_test, yy_train, yy_test = train_test_split(X_yield, y_yield, test_size=0.2, random_state=42)
-
-reg = RandomForestRegressor(n_estimators=100, random_state=42)
-reg.fit(Xy_train, yy_train)
-
-y_pred_yield = reg.predict(Xy_test)
-rmse = np.sqrt(mean_squared_error(yy_test, y_pred_yield))
-print(f"✅ Yield Regressor RMSE: {rmse:.2f} kg/hectare")
-
-joblib.dump(reg, "yield_regressor.pkl")
-
+rmse = mean_squared_error(y_test_y, y_pred_y, squared=False)
+print(f"✅ Yield Model RMSE: {rmse:.2f} tons/hectare")
+joblib.dump(yield_model, "yield_regressor.pkl")
