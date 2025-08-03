@@ -25,8 +25,8 @@ SimAgroBots is an AI-powered dashboard that predicts crop health and yield using
 
 Due to GitHub’s file size limits, model files are hosted on Hugging Face:
 
-* 🔗 [[health\_classifier.pkl on Hugging Face](https://huggingface.co/VigneshVane/SimAgroBots/resolve/main/health_classifier.pkl)]
-* 🔗 [[yield\_regressor.pkl on Hugging Face](https://huggingface.co/VigneshVane/SimAgroBots/resolve/main/yield_regressor.pkl)]
+* 🔗 [Download health_classifier.pkl](https://huggingface.co/Vignesh0401/SimAgroBots/blob/main/health_classifier.pkl)
+* 🔗 [Download yield_regressor.pkl](https://huggingface.co/Vignesh0401/SimAgroBots/blob/main/yield_regressor.pkl)
 
 > ✅ Place both `.pkl` files in the root folder of your project before running the app.
 
@@ -51,8 +51,8 @@ Due to GitHub’s file size limits, model files are hosted on Hugging Face:
 
 5. Download and place the `.pkl` files in the project root:
 
-   * [health\_classifier.pkl on Hugging Face](https://huggingface.co/VigneshVane/SimAgroBots/resolve/main/health_classifier.pkl)
-   * [yield\_regressor.pkl](https://huggingface.co/VigneshVane/SimAgroBots/resolve/main/yield_regressor.pkl)
+   * [Download health_classifier.pkl](https://huggingface.co/Vignesh0401/SimAgroBots/blob/main/health_classifier.pkl)
+   * [Download yield_regressor.pkl](https://huggingface.co/Vignesh0401/SimAgroBots/blob/main/yield_regressor.pkl)
 
 6. Run the dashboard:
 
