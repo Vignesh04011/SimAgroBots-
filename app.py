@@ -1,29 +1,53 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+from PIL import Image
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+from torchvision import models
 import joblib
-import matplotlib.pyplot as plt
 
-# --- Setup ---
-st.set_page_config(page_title="SimAgro AI Dashboard", page_icon="🌾", layout="wide")
-st.title("🌿 SimAgro: Smart Crop Health & Yield Predictor")
-st.markdown("Use the sliders below to simulate crop/environmental conditions and receive AI-powered predictions.")
+# ======================
+# App Config
+# ======================
+st.set_page_config(page_title="🌿 SimAgro AI Dashboard", page_icon="🌾", layout="wide")
+st.title("🌿 SimAgro: Smart Crop Health, Yield & Disease Predictor")
+st.markdown("Use sliders or upload a leaf image to get AI-powered predictions and cobot recommendations.")
 
-# --- Load Models & Data ---
+# ======================
+# Load Models & Data
+# ======================
 df = pd.read_csv("data/simagro_crop_simulation.csv")
+
 health_model = joblib.load("health_classifier.pkl")
 yield_model = joblib.load("yield_regressor.pkl")
 
-# ===========================================
-# 🔹 Encoding Mappings (used during training)
-# ===========================================
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+disease_model = models.resnet18(weights=None)
+num_ftrs = disease_model.fc.in_features
+disease_model.fc = nn.Linear(num_ftrs, 38)
+disease_model.load_state_dict(torch.load("best_model.pth", map_location=device))
+disease_model = disease_model.to(device)
+disease_model.eval()
+
+# ======================
+# Load Disease Info
+# ======================
+from disease_info import disease_info
+
+# ======================
+# Encoding Mappings
+# ======================
 crop_mapping = {0: "Wheat", 1: "Rice", 2: "Maize"}
 region_mapping = {0: "North", 1: "South", 2: "East"}
 soil_mapping = {0: "Sandy", 1: "Clay", 2: "Loamy"}
 irrigation_mapping = {0: "No Irrigation", 1: "Irrigation Used"}
 weather_mapping = {0: "Sunny", 1: "Cloudy", 2: "Rainy"}
 
-# --- Sidebar Inputs (Top 15) ---
+# ======================
+# Sidebar Inputs (Top 15)
+# ======================
 with st.sidebar:
     st.header("🧪 Primary Inputs (15)")
     NDVI = st.slider("NDVI", 0.0, 1.0, 0.6)
@@ -42,7 +66,9 @@ with st.sidebar:
     Sunlight_hrs = st.slider("☀️ Sunlight (hrs)", 0.0, 15.0, 8.0)
     DayInSeason = st.slider("Day in Season", 0, 150, 45)
 
-# --- Advanced Inputs ---
+# ======================
+# Advanced Inputs
+# ======================
 with st.expander("🔧 Advanced Feature Settings (Optional)"):
     Crop_label = st.selectbox("🌾 Crop Type", list(crop_mapping.values()))
     Crop = [k for k, v in crop_mapping.items() if v == Crop_label][0]
@@ -57,7 +83,6 @@ with st.expander("🔧 Advanced Feature Settings (Optional)"):
     Soil_Type = [k for k, v in soil_mapping.items() if v == Soil_label][0]
 
     Days_to_Harvest = st.slider("📆 Days to Harvest", 10, 200, 80)
-
     Rainfall_mm_2 = st.slider("Rainfall Duplicate (mm)", 0.0, 300.0, Rainfall_mm)
     Temperature_C_2 = st.slider("Temperature Duplicate (°C)", 10.0, 45.0, Temperature_C)
     Fertilizer_Used = st.slider("Fertilizer Used", 0.0, 100.0, 50.0)
@@ -71,7 +96,9 @@ with st.expander("🔧 Advanced Feature Settings (Optional)"):
     Weed_Coverage = st.slider("Weed Coverage (%)", 0.0, 100.0, 10.0)
     Soil_pH = st.slider("🧪 Soil pH", 3.0, 9.0, 6.5)
 
-# --- Prepare Input ---
+# ======================
+# Prepare Input Features
+# ======================
 input_features = np.array([[NDVI, SAVI, Soil_Moisture, Humidity, Canopy_Coverage, Chlorophyll_Content,
     Leaf_Area_Index, Pest_Hotspots, Temperature_C, Rainfall_mm, Fertilizer_g,
     Crop_Height_cm, Pest_Level, Sunlight_hrs, DayInSeason, Crop, Irrigation_Used,
@@ -79,7 +106,9 @@ input_features = np.array([[NDVI, SAVI, Soil_Moisture, Humidity, Canopy_Coverage
     Fertilizer_Used, Weather_Condition, Wind_Speed, Organic_Matter,
     Crop_Stress_Indicator, Weed_Coverage, Soil_pH]])
 
-# --- Advisor Function ---
+# ======================
+# Advisor Function
+# ======================
 def generate_cobot_recommendations(temp, moisture, pest, fertilizer, height):
     suggestions = []
     if moisture < 35: suggestions.append("💧 Moisture is low. Activate irrigation for 30–45 minutes.")
@@ -93,8 +122,12 @@ def generate_cobot_recommendations(temp, moisture, pest, fertilizer, height):
     if not suggestions: suggestions.append("✅ All parameters look optimal. Continue regular operations.")
     return suggestions
 
-# --- Predict Button ---
+# ======================
+# Predict Button
+# ======================
 if st.button("🔍 Predict"):
+
+    # Health & Yield
     predicted_health = health_model.predict(input_features)[0]
     predicted_yield = yield_model.predict(input_features)[0]
 
@@ -104,32 +137,61 @@ if st.button("🔍 Predict"):
     with col2:
         st.metric("🌾 Estimated Yield", f"{predicted_yield:.2f} tons/hectare")
 
-    # --- Virtual Cobot Advisor ---
+    # Cobot Advisor
     st.markdown("### 🤖 Virtual Cobot Advisor")
     recommendations = generate_cobot_recommendations(Temperature_C, Soil_Moisture, Pest_Level, Fertilizer_g, Crop_Height_cm)
     with st.expander("View Recommendations"):
         for rec in recommendations:
             st.write(f"- {rec}")
 
-    # --- Download Predictions ---
-    result_df = pd.DataFrame(input_features, columns=[
-        'NDVI','SAVI','Soil_Moisture','Humidity','Canopy_Coverage','Chlorophyll_Content',
-        'Leaf_Area_Index','Pest_Hotspots','Temperature(C)','Rainfall(mm)','Fertilizer(g)',
-        'Crop Height(cm)','Pest Level','Sunlight(hrs)','DayInSeason','Crop','Irrigation_Used',
-        'Region','Soil_Type','Days_to_Harvest','Rainfall_mm','Temperature_Celsius',
-        'Fertilizer_Used','Weather_Condition','Wind_Speed','Organic_Matter',
-        'Crop_Stress_Indicator','Weed_Coverage','Soil_pH'
-    ])
-    result_df["Predicted_Health"] = {0: "Poor", 1: "Average", 2: "Good"}.get(predicted_health, "Unknown")
-    result_df["Predicted_Yield"] = predicted_yield
-    st.download_button("📥 Download Prediction as CSV", result_df.to_csv(index=False), "simagro_prediction.csv", "text/csv")
+# ======================
+# Leaf Disease Detection
+# ======================
+st.markdown("---")
+st.subheader("🌱 Leaf Disease Detection")
+uploaded_file = st.file_uploader("Upload a leaf image", type=["jpg", "jpeg", "png"])
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225])
+])
 
-# --- Charts Section ---
+class_names = list(disease_info.keys())
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Leaf", width=250)
+    img_tensor = transform(image).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        outputs = disease_model(img_tensor)
+        _, preds = torch.max(outputs, 1)
+        predicted_class = class_names[preds.item()]
+        confidence = torch.softmax(outputs, dim=1)[0][preds.item()].item() * 100
+
+    st.subheader("🔍 Disease Prediction")
+    st.success(f"**{predicted_class}** detected with **{confidence:.2f}% confidence**.")
+
+    st.subheader("📖 Disease Insights")
+    if "healthy" in predicted_class.lower():
+        st.info("✅ The plant is healthy. No immediate action required.")
+    else:
+        info = disease_info.get(predicted_class)
+        if info:
+            st.warning(f"⚠️ Disease detected: **{predicted_class}**")
+            st.write(f"**Possible Cause:** {info['cause']}")
+            st.write(f"**Treatment Suggestion:** {info['treatment']}")
+        else:
+            st.write("ℹ️ Basic info not available for this disease.")
+
+# ======================
+# Charts & Raw Data
+# ======================
 st.markdown("---")
 st.subheader("📈 Simulation Trends")
 chart_option = st.selectbox("Choose variable to visualize:", df.columns[1:])
 st.line_chart(df.set_index("Day")[chart_option])
 
-# --- Raw Data Toggle ---
 with st.expander("📊 Show Raw Data"):
     st.dataframe(df.head(10))
